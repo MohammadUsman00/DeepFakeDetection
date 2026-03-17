@@ -1,0 +1,17 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    # Volumes, env vars, and storage/db mounts will be added in the Docker step.
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    # A production-grade setup (build + static hosting) will be added later.
+
