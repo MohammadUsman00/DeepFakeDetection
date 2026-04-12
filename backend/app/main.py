@@ -9,13 +9,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+import socketio
+
 from .config import settings
 from .utils.errors import AppError, ErrorCode
 from .utils.logging import configure_logging, get_logger
 from .db.init_db import init_db
 from .api.routes.artifacts import router as artifacts_router
 from .api.routes.analyze import router as analyze_router
+from .api.routes.auth import router as auth_router
 from .api.routes.health import router as health_router
+from .api.routes.jobs import router as jobs_router
 from .api.routes.results import router as results_router
 from .ml.inference.model_loader import warmup_model
 
@@ -24,35 +28,50 @@ def create_app() -> FastAPI:
     configure_logging()
     log = get_logger("app")
 
-    app = FastAPI(title="Deepfake Detection Backend", version="0.0.0")
+    # Initialize Socket.io with Redis manager for Celery-to-API communication
+    mgr = socketio.AsyncRedisManager(os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0"))
+    sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*', client_manager=mgr)
+    
+    app = FastAPI(
+        title="DeepShield AI Backend",
+        version="1.0.0",
+        description="REST endpoints are mounted under /api (e.g. /api/docs for OpenAPI).",
+    )
+    
+    # Use standard path internal to the backend; Nginx will proxy /api/socket.io/ here.
+    app_with_sio = socketio.ASGIApp(sio, app, socketio_path="/socket.io")
+    app.state.sio = sio
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=["x-request-id"],
     )
-    app.include_router(health_router)
-    app.include_router(artifacts_router)
-    app.include_router(analyze_router)
-    app.include_router(results_router)
+    
+    # Prefix routers for consistency with Nginx configuration
+    app.include_router(results_router, prefix="/api")
+    app.include_router(analyze_router, prefix="/api")
+    app.include_router(artifacts_router, prefix="/api")
+    app.include_router(health_router, prefix="/api")
+    app.include_router(auth_router, prefix="/api")
+    app.include_router(jobs_router, prefix="/api")
 
     @app.on_event("startup")
     async def _startup() -> None:
         init_db()
-        warmup_model()
-        log.info(
-            "startup",
-            extra={
-                "stage": "startup",
-                "model_id": settings.inference.model_id,
-                "batch_size": settings.inference.batch_size,
-                "max_frames": settings.video.max_frames,
-                "effective_max_frames": settings.effective_max_frames,
-                "config": settings.summary(),
-            },
-        )
+        # Warmup is now part of the worker process to keep API server light
+        log.info("startup", extra={"stage": "api_boot"})
+
+    @sio.event
+    async def connect(sid, environ):
+        log.info("socket_connect", extra={"sid": sid})
+
+    @sio.event
+    async def disconnect(sid):
+        log.info("socket_disconnect", extra={"sid": sid})
 
     @app.middleware("http")
     async def request_context_middleware(request: Request, call_next: Callable):
@@ -136,7 +155,7 @@ def create_app() -> FastAPI:
             headers={"X-Content-Type-Options": "nosniff"},
         )
 
-    return app
+    return app_with_sio
 
 
 app = create_app()

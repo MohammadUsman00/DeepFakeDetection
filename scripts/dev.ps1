@@ -1,2 +1,2 @@
-Write-Host "Dev script placeholder. Commands will be added in later steps."
-
+Write-Host "Starting DeepShield AI via Docker..." -ForegroundColor Blue
+docker compose up --build

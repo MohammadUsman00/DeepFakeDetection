@@ -1,0 +1,15 @@
+# Optional: copy to `docker-compose.override.yml` (gitignored) to tweak local ports/env
+# without editing docker-compose.yml. Compose merges this file automatically.
+#
+#   copy docker-compose.override.yml.example docker-compose.override.yml
+#
+# Example: publish Postgres for local tools
+#
+# version: "3.8"
+# services:
+#   db:
+#     ports:
+#       - "5432:5432"
+
+version: "3.8"
+services: {}

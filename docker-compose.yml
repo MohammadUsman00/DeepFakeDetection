@@ -1,17 +1,76 @@
+version: "3.8"
+
 services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=deepshield
+      - POSTGRES_PASSWORD=deepshield_secure_pw
+      - POSTGRES_DB=deepshield
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+
   backend:
     build:
-      context: ./backend
-    ports:
-      - "8000:8000"
-    # Volumes, env vars, and storage/db mounts will be added in the Docker step.
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://deepshield:deepshield_secure_pw@db:5432/deepshield
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STORAGE_DATA_DIR=/app/data
+      - SAAS_REQUIRE_AUTH=true
+      - SAAS_JWT_SECRET=change-me-to-a-long-random-string-in-production
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - db
+      - redis
+    restart: always
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=1
+    environment:
+      - DATABASE_URL=postgresql://deepshield:deepshield_secure_pw@db:5432/deepshield
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STORAGE_DATA_DIR=/app/data
+      - SAAS_REQUIRE_AUTH=true
+      - SAAS_JWT_SECRET=change-me-to-a-long-random-string-in-production
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - db
+    restart: always
 
   frontend:
     build:
       context: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    # A production-grade setup (build + static hosting) will be added later.
+    environment:
+      - NEXT_PUBLIC_API_URL=/api
+      - NEXT_PUBLIC_SAAS_REQUIRE_AUTH=true
+    restart: always
 
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8001:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: always
+
+volumes:
+  postgres_data:
+  data:

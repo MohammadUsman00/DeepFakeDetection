@@ -1,11 +1,22 @@
 fastapi
 uvicorn[standard]
+pytest
 sqlalchemy
-opencv-python-headless
+psycopg2-binary
+celery[redis]
+redis
+python-socketio
 python-multipart
+opencv-python-headless
 torch
 torchvision
 facenet-pytorch
+onnx
+onnxruntime
 pillow
 numpy
+passlib[bcrypt]
+PyJWT
+email-validator
+python-dotenv
 

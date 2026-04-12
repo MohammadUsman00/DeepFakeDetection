@@ -6,6 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+# Optional repo-root `.env` for local dev (copy from `.env.example`). Docker/Compose still inject env as usual.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+except ImportError:
+    pass
+
 
 def _env_str(name: str, default: str) -> str:
     v = os.getenv(name)
@@ -171,6 +179,16 @@ class JobConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class SaaSConfig:
+    """Freemium SaaS: JWT auth and per-tier limits."""
+
+    require_auth: bool
+    jwt_secret: str
+    jwt_exp_hours: int
+    free_tier_daily_uploads: int
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     """Centralized configuration for the backend."""
 
@@ -184,6 +202,7 @@ class Settings:
     storage: StorageConfig
     result: ResultConfig
     job: JobConfig
+    saas: SaaSConfig
 
     @staticmethod
     def load() -> "Settings":
@@ -201,7 +220,21 @@ class Settings:
         - STORAGE_*
         - RESULT_*
         - JOB_*
+        - SAAS_*
         """
+
+        # --------------------
+        # SaaS (freemium)
+        # --------------------
+        _jwt_default = "dev-insecure-change-me"
+        saas_cfg = SaaSConfig(
+            require_auth=_env_bool("SAAS_REQUIRE_AUTH", False),
+            jwt_secret=_env_str("SAAS_JWT_SECRET", _jwt_default),
+            jwt_exp_hours=_clamp_int(_env_int("SAAS_JWT_EXP_HOURS", 168), name="SAAS_JWT_EXP_HOURS", min_v=1, max_v=24 * 30),
+            free_tier_daily_uploads=_clamp_int(
+                _env_int("SAAS_FREE_DAILY_UPLOADS", 20), name="SAAS_FREE_DAILY_UPLOADS", min_v=1, max_v=10_000
+            ),
+        )
 
         # --------------------
         # File
@@ -391,7 +424,7 @@ class Settings:
             data_dir=data_dir,
             uploads_dir=uploads_dir,
             artifacts_dir=artifacts_dir,
-            artifact_url_prefix=_env_str("STORAGE_ARTIFACT_URL_PREFIX", "/artifacts"),
+            artifact_url_prefix=_env_str("STORAGE_ARTIFACT_URL_PREFIX", "/api/artifacts"),
             allow_overwrite_uploads=_env_bool("STORAGE_ALLOW_OVERWRITE_UPLOADS", False),
             total_quota_bytes=_clamp_int(
                 _env_int("STORAGE_TOTAL_QUOTA_MB", 0),
@@ -439,6 +472,7 @@ class Settings:
             storage=storage_cfg,
             result=result_cfg,
             job=job_cfg,
+            saas=saas_cfg,
         )
 
     @property
@@ -524,6 +558,11 @@ class Settings:
             "job": {
                 "timeout_seconds": self.job.timeout_seconds,
                 "max_retries": self.job.max_retries,
+            },
+            "saas": {
+                "require_auth": self.saas.require_auth,
+                "jwt_exp_hours": self.saas.jwt_exp_hours,
+                "free_tier_daily_uploads": self.saas.free_tier_daily_uploads,
             },
         }
 

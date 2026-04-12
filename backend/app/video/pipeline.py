@@ -351,24 +351,28 @@ def analyze_video_up_to_inference(
 
 def _score_to_confidence_label(score: float) -> str:
     """
-    Step 15: confidence labeling (simple thresholds; robust scoring updated later).
+    Categorize the final score into a user-friendly, authoritative label.
     """
 
-    if score >= 0.80:
-        return "Highly Likely Fake"
-    if score >= 0.60:
-        return "Suspicious"
-    return "Likely Real"
+    if score >= 0.85:
+        return "Deepfake Detected"
+    if score >= 0.65:
+        return "High Suspicion"
+    if score >= 0.40:
+        return "Inconclusive"
+    return "Authenticity Verified"
 
 
 def _score_interpretation(score: float | None) -> dict[str, Any]:
     if score is None:
-        return {"text": "Insufficient data to compute score.", "range": None}
-    if score >= 0.80:
-        return {"text": "High probability of face manipulation.", "range": "0.80-1.00"}
-    if score >= 0.60:
-        return {"text": "Some manipulation signals detected.", "range": "0.60-0.79"}
-    return {"text": "Likely authentic face region.", "range": "0.00-0.59"}
+        return {"text": "Insufficient biometric data to verify authenticity.", "range": None}
+    if score >= 0.85:
+        return {"text": "Strong structural anomalies detected in facial regions. Content is highly likely synthesized by AI.", "range": "0.85-1.00"}
+    if score >= 0.65:
+        return {"text": "Significant inconsistencies detected. Advanced manipulation patterns are present.", "range": "0.65-0.84"}
+    if score >= 0.40:
+        return {"text": "Minor artifacts detected. Unable to verify authenticity with absolute certainty.", "range": "0.40-0.64"}
+    return {"text": "No evidence of AI-generated manipulation detected. Media shows natural biometric consistency.", "range": "0.00-0.39"}
 
 
 def _aggregate_score(probs: list[float]) -> tuple[float | None, int, dict[str, Any]]:

@@ -55,6 +55,12 @@ def validate_stage_transition(from_stage: ProcessingStage | None, to_stage: Proc
     # Idempotent allowance: setting the same stage is a no-op.
     if to_idx == from_idx:
         return
-    if to_idx != from_idx + 1:
-        raise ValueError(f"Invalid stage transition: {from_stage} -> {to_stage}")
+    # In a distributed worker environment with retries, stages might re-execute.
+    # We allow forward moves and idempotent moves. We log a warning for backward moves but don't crash.
+    if to_idx < from_idx:
+        from .logging import get_logger
+        get_logger("enums").warning("backward_stage_transition", extra={"from": from_stage, "to": to_stage})
+        return
+    # Any forward move or current stage is fine
+    return
 

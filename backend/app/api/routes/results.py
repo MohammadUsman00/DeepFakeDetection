@@ -1,18 +1,24 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
+from ...config import settings
 from ...db.repository import JobRepository
 from ...db.session import db_session
 from ...utils.errors import AppError, ErrorCode
+from ..deps import resolve_bearer_user_id
 from ...utils.logging import get_logger
 
 
 router = APIRouter()
 
 
-@router.get("/result/{job_id}")
-async def get_result(job_id: str, request: Request) -> dict:
+@router.get("/results/{job_id}")
+async def get_result(
+    job_id: str,
+    request: Request,
+    viewer_id: str | None = Depends(resolve_bearer_user_id),
+) -> dict:
     request_id = getattr(request.state, "request_id", "-")
     log = get_logger("result", request_id=request_id, job_id=job_id, stage="result")
 
@@ -21,6 +27,9 @@ async def get_result(job_id: str, request: Request) -> dict:
         repo = JobRepository(db)
         job = repo.get_job(job_id)
         if job is None:
+            raise AppError(code=ErrorCode.DATABASE_ERROR, message="Job not found", job_id=job_id, http_status=404)
+
+        if job.user_id and settings.saas.require_auth and viewer_id != job.user_id:
             raise AppError(code=ErrorCode.DATABASE_ERROR, message="Job not found", job_id=job_id, http_status=404)
 
         result = repo.get_result_summary(job_id)

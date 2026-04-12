@@ -34,6 +34,13 @@ class ErrorCode(StrEnum):
     STORAGE_ERROR = "STORAGE_ERROR"
     DATABASE_ERROR = "DATABASE_ERROR"
 
+    # Auth / SaaS
+    UNAUTHORIZED = "UNAUTHORIZED"
+    FORBIDDEN = "FORBIDDEN"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    EMAIL_IN_USE = "EMAIL_IN_USE"
+    QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
+
     # Catch-all
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
@@ -61,6 +68,12 @@ ERROR_CODE_HTTP_STATUS: dict[ErrorCode, int] = {
     # Storage / DB
     ErrorCode.STORAGE_ERROR: 500,
     ErrorCode.DATABASE_ERROR: 500,
+    # Auth
+    ErrorCode.UNAUTHORIZED: 401,
+    ErrorCode.FORBIDDEN: 403,
+    ErrorCode.INVALID_CREDENTIALS: 401,
+    ErrorCode.EMAIL_IN_USE: 409,
+    ErrorCode.QUOTA_EXCEEDED: 429,
     # Catch-all
     ErrorCode.INTERNAL_ERROR: 500,
 }

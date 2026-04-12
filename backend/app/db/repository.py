@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..utils.enums import JobState, ProcessingStage, validate_stage_transition
 from ..utils.errors import AppError, ErrorCode
-from ..utils.debug_mode import dbg_log
 from .models import Job, Result
 
 
@@ -52,6 +51,7 @@ class JobRecord:
     processing_completed_at: datetime | None
     retry_count: int
     timed_out: int
+    user_id: str | None
 
 
 class JobRepository:
@@ -67,6 +67,7 @@ class JobRepository:
         original_content_type: str | None = None,
         original_size_bytes: int | None = None,
         expires_at: datetime | None = None,
+        user_id: str | None = None,
     ) -> JobRecord:
         now = _utcnow()
         if expires_at is None and settings.cleanup.enabled:
@@ -82,6 +83,7 @@ class JobRepository:
 
         job = Job(
             id=job_id,
+            user_id=user_id,
             media_type=media_type,
             state=JobState.QUEUED.value,
             stage=ProcessingStage.validating.value,
@@ -200,22 +202,6 @@ class JobRepository:
             self.db.rollback()
             raise
         except Exception as e:
-            # region agent log
-            dbg_log(
-                run_id="repro",
-                hypothesis_id="H_UPDATE_STATUS_FAIL",
-                location="backend/app/db/repository.py:JobRepository.update_status:except",
-                message="update_status underlying exception",
-                data={
-                    "job_id": job_id,
-                    "state": None if state is None else state.value,
-                    "stage": None if stage is None else stage.value,
-                    "progress_percent": progress_percent,
-                    "err_type": type(e).__name__,
-                    "err": str(e),
-                },
-            )
-            # endregion
             self.db.rollback()
             raise AppError(code=ErrorCode.DATABASE_ERROR, message="Failed to update job status", job_id=job_id) from e
 
@@ -319,10 +305,19 @@ class JobRepository:
         rows = self.db.execute(select(Job).order_by(Job.created_at.desc()).limit(limit)).scalars().all()
         return [self._to_record(j) for j in rows]
 
+    def list_jobs_for_user(self, user_id: str, limit: int = 50) -> list[JobRecord]:
+        rows = (
+            self.db.execute(select(Job).where(Job.user_id == user_id).order_by(Job.created_at.desc()).limit(limit))
+            .scalars()
+            .all()
+        )
+        return [self._to_record(j) for j in rows]
+
     @staticmethod
     def _to_record(job: Job) -> JobRecord:
         return JobRecord(
             id=job.id,
+            user_id=getattr(job, "user_id", None),
             media_type=job.media_type,
             state=job.state,
             stage=job.stage,

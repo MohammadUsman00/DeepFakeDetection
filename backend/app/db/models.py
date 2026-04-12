@@ -10,15 +10,30 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = (Index("ix_users_email", "email"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    tier: Mapped[str] = mapped_column(String(16), nullable=False, default="free")  # free | pro
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    jobs: Mapped[list["Job"]] = relationship(back_populates="owner")
+
+
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         Index("ix_jobs_state", "state"),
         Index("ix_jobs_created_at", "created_at"),
         Index("ix_jobs_expires_at", "expires_at"),
+        Index("ix_jobs_user_id", "user_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
     media_type: Mapped[str] = mapped_column(String(16), nullable=False)  # "video" | "image"
 
     state: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -44,6 +59,7 @@ class Job(Base):
     stored_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     result: Mapped["Result | None"] = relationship(back_populates="job", uselist=False)
+    owner: Mapped["User | None"] = relationship(back_populates="jobs")
 
 
 class Result(Base):
