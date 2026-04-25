@@ -36,6 +36,8 @@ type InvestigationStage = "SELECTION" | "UPLOAD" | "ANALYSIS" | "RESULT";
 
 interface BackendResultSummary {
   final_score: number | null;
+  decision_threshold?: number;
+  predicted_manipulation?: boolean | null;
   confidence_label?: string;
   low_confidence?: boolean;
   low_confidence_reason?: string | null;
@@ -135,7 +137,13 @@ export default function ForensicDashboard() {
         if (data.state === "COMPLETED" && data.result) {
           const r = data.result as BackendResultSummary;
           const fs = r.final_score;
-          const is_fake = fs !== null && fs !== undefined ? fs >= 0.5 : false;
+          const th = r.decision_threshold ?? 0.5;
+          const is_fake =
+            typeof r.predicted_manipulation === "boolean"
+              ? r.predicted_manipulation
+              : fs !== null && fs !== undefined
+                ? fs >= th
+                : false;
           const confidence = fs !== null && fs !== undefined ? fs * 100 : 0;
           setResult({
             ...r,
@@ -165,7 +173,7 @@ export default function ForensicDashboard() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [stage, jobId]);
+  }, [stage, jobId, addLog]);
 
   useEffect(() => {
     if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
@@ -382,6 +390,8 @@ export default function ForensicDashboard() {
           <div className="space-y-10">
             <AuthenticityScorePanel
               finalScore={result.final_score}
+              decisionThreshold={result.decision_threshold}
+              predictedManipulation={result.predicted_manipulation}
               confidenceLabel={result.confidence_label}
               lowConfidence={result.low_confidence}
               framesUsed={result.frames_used_for_score}

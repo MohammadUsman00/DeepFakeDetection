@@ -15,6 +15,10 @@ import { Activity, AlertTriangle, Shield } from "lucide-react";
 
 type Props = {
   finalScore: number | null | undefined;
+  /** Server policy: p_fake >= this => manipulation when predicted_manipulation is computed */
+  decisionThreshold?: number;
+  /** When set, drives icon/UX instead of hardcoded 0.5 */
+  predictedManipulation?: boolean | null;
   confidenceLabel?: string;
   lowConfidence?: boolean;
   framesUsed?: number | null;
@@ -29,6 +33,8 @@ function scoreColor(pFake: number): string {
 
 export function AuthenticityScorePanel({
   finalScore,
+  decisionThreshold = 0.5,
+  predictedManipulation,
   confidenceLabel,
   lowConfidence,
   framesUsed,
@@ -37,6 +43,8 @@ export function AuthenticityScorePanel({
   const p = finalScore != null && !Number.isNaN(Number(finalScore)) ? Number(finalScore) : null;
   const pct = p != null ? Math.round(p * 1000) / 10 : null;
   const chartData = [{ name: "P(fake)", value: pct ?? 0 }];
+  const elevated =
+    typeof predictedManipulation === "boolean" ? predictedManipulation : p != null && p >= decisionThreshold;
 
   return (
     <div
@@ -61,7 +69,7 @@ export function AuthenticityScorePanel({
           )}
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-border/80 bg-background/50 px-4 py-3">
-          {p != null && p >= 0.5 ? (
+          {elevated ? (
             <Activity className="h-8 w-8 text-destructive opacity-90" aria-hidden />
           ) : (
             <Shield className="h-8 w-8 text-primary opacity-90" aria-hidden />
@@ -70,6 +78,9 @@ export function AuthenticityScorePanel({
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Fake probability</p>
             <p className="text-3xl font-mono font-bold tabular-nums" style={{ color: p != null ? scoreColor(p) : "#94a3b8" }}>
               {pct != null ? `${pct}%` : "—"}
+            </p>
+            <p className="mt-1 text-[10px] text-muted-foreground/80">
+              Policy threshold: {(decisionThreshold * 100).toFixed(0)}% p(fake)
             </p>
           </div>
         </div>

@@ -4,12 +4,6 @@ const backendProxy = process.env.BACKEND_PROXY_URL || "http://127.0.0.1:8000";
 const nextConfig = {
     output: "standalone",
     optimizeFonts: false,
-    typescript: {
-        ignoreBuildErrors: true,
-    },
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
     /** Dev / local: proxy /api to FastAPI so the browser can use same-origin /api calls. */
     async rewrites() {
         return [

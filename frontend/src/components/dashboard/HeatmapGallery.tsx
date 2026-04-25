@@ -3,7 +3,7 @@
 import React from "react";
 import { Scan } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { withArtifactToken } from "@/lib/auth";
+import { authHeaders } from "@/lib/auth";
 
 export type HeatmapItem = {
   frame_index: number;
@@ -43,12 +43,9 @@ export function HeatmapGallery({ items, className }: Props) {
           key={h.frame_index}
           className="overflow-hidden rounded-xl border border-border bg-muted/20 shadow-sm transition-shadow hover:shadow-md"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={withArtifactToken(h.heatmap_overlay_url!)}
-            alt={`Grad-CAM overlay for frame ${h.frame_index}`}
-            className="aspect-video w-full object-cover"
-            loading="lazy"
+          <HeatmapImage
+            src={h.heatmap_overlay_url!}
+            frameIndex={h.frame_index}
           />
           <figcaption className="flex items-center justify-between border-t border-border/60 bg-background/40 px-3 py-2 font-mono text-[11px] text-muted-foreground">
             <span>Frame {h.frame_index}</span>
@@ -57,5 +54,69 @@ export function HeatmapGallery({ items, className }: Props) {
         </figure>
       ))}
     </div>
+  );
+}
+
+function HeatmapImage({ src, frameIndex }: { src: string; frameIndex: number }) {
+  const [objectUrl, setObjectUrl] = React.useState<string>("");
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    let createdUrl = "";
+    const controller = new AbortController();
+
+    const load = async () => {
+      try {
+        setLoadError(null);
+        const res = await fetch(src, {
+          headers: { ...authHeaders() },
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`artifact ${res.status}`);
+        }
+        const blob = await res.blob();
+        if (!active) return;
+        createdUrl = URL.createObjectURL(blob);
+        setObjectUrl(createdUrl);
+      } catch {
+        if (active) setLoadError("Unable to load overlay");
+      }
+    };
+
+    load();
+
+    return () => {
+      active = false;
+      controller.abort();
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [src]);
+
+  if (loadError) {
+    return (
+      <div className="flex aspect-video w-full items-center justify-center bg-muted/30 text-xs text-muted-foreground">
+        {loadError}
+      </div>
+    );
+  }
+
+  if (!objectUrl) {
+    return (
+      <div className="flex aspect-video w-full items-center justify-center bg-muted/30 text-xs text-muted-foreground">
+        Loading frame {frameIndex}...
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={objectUrl}
+      alt={`Grad-CAM overlay for frame ${frameIndex}`}
+      className="aspect-video w-full object-cover"
+      loading="lazy"
+    />
   );
 }
