@@ -32,6 +32,8 @@
 - [Machine learning & training](#machine-learning--training)
 - [Configuration](#configuration)
 - [Environment files](#environment-files)
+- [ML expectations & evaluation](#ml-expectations--evaluation)
+- [Development & Git workflow](#development--git-workflow)
 - [Testing](#testing)
 - [Limitations & responsible use](#limitations--responsible-use)
 - [Documentation index](#documentation-index)
@@ -278,7 +280,31 @@ Centralized environment-driven settings live in **`backend/app/config.py`**, inc
 - Storage paths, artifact URL prefix, cleanup TTL  
 - SaaS / JWT / free tier  
 
-Optional rate limiting: `RATE_LIMIT_RPS` (0 disables).
+Optional rate limiting: `RATE_LIMIT_RPS` (0 disables).  
+CORS: `CORS_ALLOWED_ORIGINS` (comma-separated; required for browser clients when not using the Next.js dev proxy).  
+**Decision policy:** `INFER_FAKE_DECISION_THRESHOLD` (0–1, default `0.5`) — if `final_score` (aggregated p_fake) is at or above this value and the run is not marked low-confidence, the API sets `predicted_manipulation: true` in the result JSON. Tune this on **your** validation set; it is a product/policy choice, not a universal constant.
+
+---
+
+## ML expectations & evaluation
+
+DeepShield is a **face-centric screening** tool, not a certificate of real-world truth or legal authenticity.
+
+- **No open-world guarantee:** Accuracy depends on training data, compression, and domain. Calibrate `INFER_FAKE_DECISION_THRESHOLD` using held-out data and your target trade-off (false positives vs false negatives). See [docs/ML_EVALUATION.md](docs/ML_EVALUATION.md) and [ml/train/README.md](ml/train/README.md).
+- **Outputs are probabilistic:** `final_score` and `predicted_manipulation` support triage and review workflows; they are not a substitute for forensic lab analysis.
+- **Explainability:** Grad-CAM-style overlays indicate where the model focused; they do not prove an edit location.
+- **Improvement path:** invest in **data coverage**, **rigorous evaluation** (AUC, EER, TPR@FPR), and **reproducible** training runs before promising “production-grade” detection.
+
+Result payloads include `decision_threshold` and `predicted_manipulation` (or `null` when low-confidence / insufficient evidence) so clients stay aligned with server policy.
+
+---
+
+## Development & Git workflow
+
+- **Branching:** use short-lived feature branches; open PRs for review when collaborating.
+- **Commits:** prefer [Conventional Commits](https://www.conventionalcommits.org/) style, e.g. `feat(api): add decision fields`, `fix(frontend): align score panel with threshold`, `test(backend): add policy unit tests`, `docs: update evaluation section`.
+- **Do not commit:** `.env`, `node_modules/`, `.next/`, secrets, or local SQLite under `backend/data/` (see [.gitignore](.gitignore)).
+- **Pre-push checks (recommended):** from `backend/`, `pytest -q`; from `frontend/`, `npm run lint` and `npm run build`.
 
 ---
 
@@ -288,6 +314,17 @@ Optional rate limiting: `RATE_LIMIT_RPS` (0 disables).
 cd backend
 pip install -r requirements.txt
 pytest -q
+```
+
+Backend tests live in `backend/tests/`: API smoke tests, auth flow, upload validation, and **policy** unit tests for `predicted_manipulation` (`test_result_decision.py`). They avoid heavy ML and Celery by design.
+
+**Frontend (optional):**
+
+```powershell
+cd frontend
+npm install
+npm run lint
+npm run build
 ```
 
 ---

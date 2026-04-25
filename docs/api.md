@@ -26,7 +26,7 @@ Returns:
 - `state`: e.g. `QUEUED`, `RUNNING`, `PROCESSING`, `COMPLETED`, `FAILED`
 - `stage`: processing stage string
 - `progress_percent`: 0–100
-- `result`: opaque JSON summary when completed (scores, labels, `top_k_suspicious`, etc.)
+- `result`: opaque JSON summary when completed (scores, labels, `decision_threshold`, `predicted_manipulation`, `top_k_suspicious`, etc.)
 - `error`: populated when failed
 
 ## `GET /api/artifacts/{job_id}/{name}`
