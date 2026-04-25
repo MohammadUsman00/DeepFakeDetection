@@ -108,6 +108,8 @@ class InferenceConfig:
     model_weights_path: Path
     gradcam_time_budget_ms: int
     gradcam_overlay_alpha: float
+    # Policy: p_fake >= threshold => predicted_manipulation True (when not low-confidence).
+    fake_decision_threshold: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +205,7 @@ class Settings:
     result: ResultConfig
     job: JobConfig
     saas: SaaSConfig
+    cors_allowed_origins: tuple[str, ...]
 
     @staticmethod
     def load() -> "Settings":
@@ -336,6 +339,12 @@ class Settings:
                 min_v=0.0,
                 max_v=1.0,
             ),
+            fake_decision_threshold=_clamp_float(
+                _env_float("INFER_FAKE_DECISION_THRESHOLD", 0.5),
+                name="INFER_FAKE_DECISION_THRESHOLD",
+                min_v=0.0,
+                max_v=1.0,
+            ),
         )
         if infer_cfg.model_id.strip() == "":
             raise ValueError("INFER_MODEL_ID must not be empty")
@@ -454,6 +463,7 @@ class Settings:
             timeout_seconds=_clamp_int(_env_int("JOB_TIMEOUT_SECONDS", 0), name="JOB_TIMEOUT_SECONDS", min_v=0, max_v=24 * 60 * 60),
             max_retries=_clamp_int(_env_int("JOB_MAX_RETRIES", 0), name="JOB_MAX_RETRIES", min_v=0, max_v=5),
         )
+        cors_allowed_origins = _env_csv("CORS_ALLOWED_ORIGINS", ("http://localhost:3000", "http://127.0.0.1:3000"))
 
         # Basic sanity checks that prevent misconfiguration.
         if infer_cfg.top_k_explainability < 1:
@@ -473,6 +483,7 @@ class Settings:
             result=result_cfg,
             job=job_cfg,
             saas=saas_cfg,
+            cors_allowed_origins=cors_allowed_origins,
         )
 
     @property
@@ -526,6 +537,7 @@ class Settings:
                 "model_weights_path": str(self.inference.model_weights_path),
                 "gradcam_time_budget_ms": self.inference.gradcam_time_budget_ms,
                 "gradcam_overlay_alpha": self.inference.gradcam_overlay_alpha,
+                "fake_decision_threshold": self.inference.fake_decision_threshold,
             },
             "aggregation": {
                 "top_fraction": self.aggregation.top_fraction,
@@ -563,6 +575,9 @@ class Settings:
                 "require_auth": self.saas.require_auth,
                 "jwt_exp_hours": self.saas.jwt_exp_hours,
                 "free_tier_daily_uploads": self.saas.free_tier_daily_uploads,
+            },
+            "cors": {
+                "allowed_origins": list(self.cors_allowed_origins),
             },
         }
 

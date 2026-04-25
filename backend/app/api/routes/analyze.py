@@ -33,7 +33,7 @@ from ...celery_app import celery_app
 # Synchronous Socket.io manager for Celery workers
 sio_mgr = socketio.RedisManager(os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0"))
 
-@celery_app.task(name="process_analysis_task", bind=True, max_retries=3)
+@celery_app.task(name="process_analysis_task", bind=True, max_retries=max(0, settings.job.max_retries))
 def process_analysis_task(self, job_id: str) -> None:
     """
     Celery task that replaces the old FastAPI BackgroundTasks.

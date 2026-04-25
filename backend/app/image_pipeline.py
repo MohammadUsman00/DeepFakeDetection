@@ -15,6 +15,7 @@ from .services.storage_service import StorageService
 from .utils.enums import ProcessingStage
 from .utils.errors import AppError, ErrorCode
 from .utils.logging import get_logger
+from .ml.result_decision import predicted_manipulation
 from .video.pipeline import _crop_rgb, _score_to_confidence_label, _score_interpretation
 
 def analyze_image_pipeline(
@@ -102,9 +103,16 @@ def analyze_image_pipeline(
     confidence_label = "Low Confidence" if low_confidence or final_score is None else _score_to_confidence_label(final_score)
     interpretation = _score_interpretation(final_score)
     processing_ms = int((time.perf_counter() - t0) * 1000)
+    th = float(settings.inference.fake_decision_threshold)
 
     return {
         "final_score": final_score,
+        "decision_threshold": th,
+        "predicted_manipulation": predicted_manipulation(
+            final_score=final_score,
+            low_confidence=low_confidence,
+            threshold=th,
+        ),
         "confidence_label": confidence_label,
         "confidence_explanation": "Single image static analysis.",
         "aggregation_method": "single_frame",

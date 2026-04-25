@@ -26,6 +26,11 @@ def _database_url_from_env() -> str | None:
 
 def get_engine() -> Engine:
     url = _database_url_from_env()
+    if url and url.strip().lower().startswith("sqlite"):
+        return create_engine(
+            url.strip(),
+            connect_args={"check_same_thread": False},
+        )
     if url:
         # pool_pre_ping avoids stale connections after idle periods (e.g. behind Docker)
         return create_engine(url, pool_pre_ping=True)

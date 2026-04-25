@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+# Isolated SQLite DB for pytest (avoids requiring local Postgres when root `.env` sets DATABASE_URL).
+_test_db = (Path(__file__).resolve().parent / "deepshield_test.sqlite3").as_posix()
+os.environ["DATABASE_URL"] = f"sqlite:///{_test_db}"
 
 os.environ.setdefault("SAAS_REQUIRE_AUTH", "false")
 

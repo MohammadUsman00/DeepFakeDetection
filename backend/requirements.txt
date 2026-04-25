@@ -16,6 +16,7 @@ onnxruntime
 pillow
 numpy
 passlib[bcrypt]
+bcrypt==4.0.1
 PyJWT
 email-validator
 python-dotenv

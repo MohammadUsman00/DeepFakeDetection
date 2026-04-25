@@ -14,6 +14,7 @@ from ..ml.preprocessing.transforms import preprocess_face_rgb
 from ..ml.inference.predictor import predict_batch
 from ..ml.inference.model_loader import get_model
 from ..ml.inference.gradcam import GradCam, default_efficientnet_target_layer, encode_png_bytes
+from ..ml.result_decision import predicted_manipulation
 from ..services.job_service import JobService
 from ..services.storage_service import StorageService
 from ..utils.enums import ProcessingStage
@@ -212,8 +213,15 @@ def analyze_video_up_to_inference(
         interpretation = _score_interpretation(final_score)
         analysis_completed_at = time.time()
 
+        th = float(settings.inference.fake_decision_threshold)
         result_summary = {
             "final_score": final_score,
+            "decision_threshold": th,
+            "predicted_manipulation": predicted_manipulation(
+                final_score=final_score,
+                low_confidence=low_confidence,
+                threshold=th,
+            ),
             "confidence_label": confidence_label,
             "confidence_explanation": confidence_explanation,
             "aggregation_method": aggregation_method,
