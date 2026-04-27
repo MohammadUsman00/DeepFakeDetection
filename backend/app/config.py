@@ -188,6 +188,10 @@ class SaaSConfig:
     jwt_secret: str
     jwt_exp_hours: int
     free_tier_daily_uploads: int
+    auth_cookie_name: str
+    auth_cookie_secure: bool
+    auth_cookie_samesite: str
+    return_token_in_body: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,6 +234,10 @@ class Settings:
         # SaaS (freemium)
         # --------------------
         _jwt_default = "dev-insecure-change-me"
+        _samesite = _env_str("SAAS_AUTH_COOKIE_SAMESITE", "lax").lower()
+        if _samesite not in {"lax", "strict", "none"}:
+            raise ValueError("SAAS_AUTH_COOKIE_SAMESITE must be lax|strict|none")
+
         saas_cfg = SaaSConfig(
             require_auth=_env_bool("SAAS_REQUIRE_AUTH", False),
             jwt_secret=_env_str("SAAS_JWT_SECRET", _jwt_default),
@@ -237,7 +245,13 @@ class Settings:
             free_tier_daily_uploads=_clamp_int(
                 _env_int("SAAS_FREE_DAILY_UPLOADS", 20), name="SAAS_FREE_DAILY_UPLOADS", min_v=1, max_v=10_000
             ),
+            auth_cookie_name=_env_str("SAAS_AUTH_COOKIE_NAME", "deepshield_access_token"),
+            auth_cookie_secure=_env_bool("SAAS_AUTH_COOKIE_SECURE", False),
+            auth_cookie_samesite=_samesite,
+            return_token_in_body=_env_bool("SAAS_RETURN_TOKEN_IN_BODY", True),
         )
+        if saas_cfg.require_auth and len(saas_cfg.jwt_secret) < 32:
+            raise ValueError("SAAS_JWT_SECRET must be at least 32 characters when SAAS_REQUIRE_AUTH=true")
 
         # --------------------
         # File
@@ -575,6 +589,10 @@ class Settings:
                 "require_auth": self.saas.require_auth,
                 "jwt_exp_hours": self.saas.jwt_exp_hours,
                 "free_tier_daily_uploads": self.saas.free_tier_daily_uploads,
+                "auth_cookie_name": self.saas.auth_cookie_name,
+                "auth_cookie_secure": self.saas.auth_cookie_secure,
+                "auth_cookie_samesite": self.saas.auth_cookie_samesite,
+                "return_token_in_body": self.saas.return_token_in_body,
             },
             "cors": {
                 "allowed_origins": list(self.cors_allowed_origins),

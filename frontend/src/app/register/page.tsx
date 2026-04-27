@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { setToken } from "@/lib/auth";
+import { mergeAuthInit, setToken } from "@/lib/auth";
 import { Shield, ArrowLeft } from "lucide-react";
 
 export default function RegisterPage() {
@@ -22,11 +22,14 @@ export default function RegisterPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await fetch(
+        "/api/auth/register",
+        mergeAuthInit({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        })
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = typeof data?.detail === "string" ? data.detail : Array.isArray(data?.detail) ? data.detail[0]?.msg : null;
@@ -34,7 +37,9 @@ export default function RegisterPage() {
         setLoading(false);
         return;
       }
-      setToken(data.access_token);
+      if (typeof data.access_token === "string" && data.access_token) {
+        setToken(data.access_token);
+      }
       router.push("/");
       router.refresh();
     } catch {

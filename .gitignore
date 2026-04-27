@@ -60,6 +60,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Alembic / local scratch SQLite (autogenerate)
+backend/_alembic*.sqlite3
+
 # DeepShield specific data
 data/
 # Local dev DB (when not using repo data/)

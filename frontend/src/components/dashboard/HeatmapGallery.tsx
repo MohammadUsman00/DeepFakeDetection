@@ -3,7 +3,7 @@
 import React from "react";
 import { Scan } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { authHeaders } from "@/lib/auth";
+import { mergeAuthInit } from "@/lib/auth";
 
 export type HeatmapItem = {
   frame_index: number;
@@ -69,10 +69,7 @@ function HeatmapImage({ src, frameIndex }: { src: string; frameIndex: number }) 
     const load = async () => {
       try {
         setLoadError(null);
-        const res = await fetch(src, {
-          headers: { ...authHeaders() },
-          signal: controller.signal,
-        });
+        const res = await fetch(src, mergeAuthInit({ signal: controller.signal }));
         if (!res.ok) {
           throw new Error(`artifact ${res.status}`);
         }

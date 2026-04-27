@@ -16,14 +16,17 @@ const NAV = [
 
 type Props = {
   onSignOut?: () => void;
+  /** When SaaS auth is on, prefer this over localStorage token (HttpOnly cookie sessions). */
+  signedIn?: boolean;
   className?: string;
 };
 
-export function LandingNav({ onSignOut, className }: Props) {
+export function LandingNav({ onSignOut, signedIn: signedInProp, className }: Props) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const auth = isAuthRequired();
-  const signedIn = auth && !!getToken();
+  const signedIn =
+    typeof signedInProp === "boolean" ? signedInProp && auth : auth && !!getToken();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
