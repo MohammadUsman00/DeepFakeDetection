@@ -20,4 +20,6 @@ bcrypt==4.0.1
 PyJWT
 email-validator
 python-dotenv
+alembic
+prometheus-fastapi-instrumentator
 

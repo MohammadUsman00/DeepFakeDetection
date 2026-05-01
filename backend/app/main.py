@@ -5,9 +5,14 @@ import uuid
 import os
 from typing import Callable
 
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 import socketio
 
@@ -30,7 +35,11 @@ def create_app() -> FastAPI:
 
     # Initialize Socket.io with Redis manager for Celery-to-API communication
     mgr = socketio.AsyncRedisManager(os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0"))
-    sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*', client_manager=mgr)
+    sio = socketio.AsyncServer(
+        async_mode="asgi",
+        cors_allowed_origins=list(settings.cors_allowed_origins),
+        client_manager=mgr,
+    )
     
     app = FastAPI(
         title="DeepShield AI Backend",
@@ -59,9 +68,17 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api")
     app.include_router(jobs_router, prefix="/api")
 
+    if os.getenv("ENABLE_PROMETHEUS_METRICS", "true").lower() in ("1", "true", "yes"):
+        Instrumentator().instrument(app).expose(app, endpoint="/api/metrics", include_in_schema=False)
+
     @app.on_event("startup")
     async def _startup() -> None:
-        init_db()
+        if os.getenv("RUN_DB_MIGRATIONS_ON_STARTUP", "").lower() in ("1", "true", "yes"):
+            backend_root = Path(__file__).resolve().parent.parent
+            alembic_ini = backend_root / "alembic.ini"
+            command.upgrade(Config(str(alembic_ini)), "head")
+        else:
+            init_db()
         # Warmup is now part of the worker process to keep API server light
         log.info("startup", extra={"stage": "api_boot"})
 
@@ -82,6 +99,9 @@ def create_app() -> FastAPI:
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         response.headers["x-request-id"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         get_logger("request", request_id=request_id).info(
             "request",
             extra={

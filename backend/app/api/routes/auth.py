@@ -5,10 +5,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, EmailStr, Field
+from starlette.responses import Response
 
 from ...config import settings
 from ...db.session import db_session
 from ...db.user_repository import UserRepository
+from ...services.auth_cookie import clear_auth_cookie, set_auth_cookie
 from ...services.auth_tokens import create_access_token
 from ...services.passwords import hash_password, verify_password
 from ...utils.errors import AppError, ErrorCode
@@ -27,8 +29,19 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+def _login_response_payload(u, token: str) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "token_type": "bearer",
+        "expires_in_hours": settings.saas.jwt_exp_hours,
+        "user": {"id": u.id, "email": u.email, "tier": u.tier},
+    }
+    if settings.saas.return_token_in_body:
+        payload["access_token"] = token
+    return payload
+
+
 @router.post("/auth/register")
-def register(body: RegisterRequest) -> dict[str, Any]:
+def register(body: RegisterRequest, response: Response) -> dict[str, Any]:
     db = db_session()
     try:
         users = UserRepository(db)
@@ -38,18 +51,14 @@ def register(body: RegisterRequest) -> dict[str, Any]:
         if u is None:
             raise AppError(code=ErrorCode.INTERNAL_ERROR, message="User creation failed")
         token = create_access_token(user_id=u.id, email=u.email, tier=u.tier)
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "expires_in_hours": settings.saas.jwt_exp_hours,
-            "user": {"id": u.id, "email": u.email, "tier": u.tier},
-        }
+        set_auth_cookie(response, token)
+        return _login_response_payload(u, token)
     finally:
         db.close()
 
 
 @router.post("/auth/login")
-def login(body: LoginRequest) -> dict[str, Any]:
+def login(body: LoginRequest, response: Response) -> dict[str, Any]:
     db = db_session()
     try:
         users = UserRepository(db)
@@ -60,14 +69,16 @@ def login(body: LoginRequest) -> dict[str, Any]:
         if ph is None or not verify_password(body.password, ph):
             raise AppError(code=ErrorCode.INVALID_CREDENTIALS, message="Invalid email or password")
         token = create_access_token(user_id=u.id, email=u.email, tier=u.tier)
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "expires_in_hours": settings.saas.jwt_exp_hours,
-            "user": {"id": u.id, "email": u.email, "tier": u.tier},
-        }
+        set_auth_cookie(response, token)
+        return _login_response_payload(u, token)
     finally:
         db.close()
+
+
+@router.post("/auth/logout")
+def logout(response: Response) -> dict[str, str]:
+    clear_auth_cookie(response)
+    return {"status": "ok"}
 
 
 @router.get("/auth/me")

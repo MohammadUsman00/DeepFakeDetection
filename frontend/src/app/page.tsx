@@ -29,7 +29,7 @@ import { LandingDisclaimer } from "@/components/landing/LandingDisclaimer";
 import { LandingFaq } from "@/components/landing/LandingFaq";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { cn } from "@/lib/cn";
-import { authHeaders, clearToken, getToken, isAuthRequired } from "@/lib/auth";
+import { clearToken, isAuthRequired, mergeAuthInit } from "@/lib/auth";
 
 type ForensicMode = "VIDEO" | "IMAGE" | null;
 type InvestigationStage = "SELECTION" | "UPLOAD" | "ANALYSIS" | "RESULT";
@@ -91,8 +91,20 @@ export default function ForensicDashboard() {
       setAuthReady(true);
       return;
     }
-    setNeedLogin(!getToken());
-    setAuthReady(true);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me", mergeAuthInit());
+        if (!cancelled) setNeedLogin(!res.ok);
+      } catch {
+        if (!cancelled) setNeedLogin(true);
+      } finally {
+        if (!cancelled) setAuthReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -119,7 +131,7 @@ export default function ForensicDashboard() {
 
     const tick = async () => {
       try {
-        const res = await fetch(`/api/results/${jobId}`, { headers: { ...authHeaders() } });
+        const res = await fetch(`/api/results/${jobId}`, mergeAuthInit());
         if (!res.ok) {
           if (res.status === 404) {
             setError("Job not found.");
@@ -208,7 +220,7 @@ export default function ForensicDashboard() {
     const endpoint = mode === "VIDEO" ? "/api/analyze-video" : "/api/analyze-image";
 
     try {
-      const res = await fetch(endpoint, { method: "POST", headers: { ...authHeaders() }, body: fd });
+      const res = await fetch(endpoint, mergeAuthInit({ method: "POST", body: fd }));
       if (!res.ok) throw new Error("upload failed");
       const data = await res.json();
       setJobId(data.job_id);
@@ -234,6 +246,7 @@ export default function ForensicDashboard() {
   };
 
   const signOut = () => {
+    void fetch("/api/auth/logout", mergeAuthInit({ method: "POST" }));
     clearToken();
     setNeedLogin(isAuthRequired());
     reset();
@@ -482,7 +495,7 @@ export default function ForensicDashboard() {
     <div className="relative min-h-screen bg-background bg-app-mesh text-foreground">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(16,185,129,0.12),transparent)]" />
 
-      <LandingNav onSignOut={signOut} />
+      <LandingNav onSignOut={signOut} signedIn={authReady && isAuthRequired() && !needLogin} />
 
       <LandingHero onScrollToAnalyzer={scrollToAnalyzerSection} />
 

@@ -23,7 +23,7 @@ const CARDS = [
   {
     icon: ImageIcon,
     title: "Artifact delivery",
-    body: "Heatmaps and summaries are fetched over HTTPS; images can use tokenized URLs for secure embedding.",
+    body: "Heatmaps and summaries are fetched over HTTPS using bearer-authenticated API calls with account ownership checks.",
     accent: "text-secondary",
   },
 ] as const;
